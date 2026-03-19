@@ -436,7 +436,7 @@
 // ═══════════════════════════════════
 const SUPABASE_URL = 'https://upuwavieuqtnbewniquo.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_MW-rLWfeXQP7F-zKrFHwdg_t1hOSGpD';
-const ADMIN_PASSWORD = 'lyricslab2026'; // ← Change this!
+const ADMIN_PASSWORD = 'lyricslab2024'; // ← Change this!
 const SCHOOL_DOMAIN = '@nikolatesla.edu.mx';
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -651,12 +651,12 @@ function buildFillBlanks() {
   let html = lyrics;
   words.forEach(word => {
     const regex = new RegExp('\\b(' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')\\b', 'gi');
-    html = html.replace(regex, match =>
-      `<input class="blank-input" data-answer="${match.toLowerCase()}"
-        size="${Math.max(6, match.length + 2)}"
-        autocomplete="off" autocorrect="off" spellcheck="false"
-        placeholder="${'_'.repeat(Math.max(4, match.length))}" />`
-    );
+    html = html.replace(regex, match => {
+      const ans = match.toLowerCase();
+      const sz = Math.max(6, match.length + 2);
+      const ph = '_'.repeat(Math.max(4, match.length));
+      return '<input class="blank-input" data-answer="' + ans + '" size="' + sz + '" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="' + ph + '" />';
+    });
   });
   document.getElementById('lyricsFill').innerHTML = html.replace(/\n/g, '<br>');
 }
