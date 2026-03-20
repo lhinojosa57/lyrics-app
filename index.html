@@ -285,6 +285,7 @@
       </div>
       <div class="video-progress"><div class="video-progress-bar" id="videoProgressBar"></div></div>
       <div class="video-status" id="videoStatus">⏳ Watch the video to unlock the next step...</div>
+      <div id="ytApiStatus" style="font-size:0.72rem;color:var(--gray);text-align:center;margin-bottom:4px"></div>
       <button class="btn btn-primary btn-full" id="continueToStep3" onclick="goToStep3()" disabled>🔒 Continue (watch more to unlock)</button>
     </div>
 
@@ -733,13 +734,19 @@ function goToStep2() {
         iv_load_policy: 3
       },
       events: {
-        onReady: () => { ytPlayerReady = true; startWatchTimer(minWatch); },
-        onStateChange: (e) => { handleYTStateChange(e, minWatch); }
+        onReady: () => { ytPlayerReady = true; document.getElementById('ytApiStatus').textContent = '🟢 YouTube API connected'; startWatchTimer(minWatch); },
+        onStateChange: (e) => {
+        const states = {-1:'unstarted',0:'ended',1:'playing',2:'paused',3:'buffering',5:'cued'};
+        document.getElementById('ytApiStatus').textContent = '🎬 State: ' + (states[e.data]||e.data);
+        handleYTStateChange(e, minWatch);
+      }
       }
     });
   };
 
+  document.getElementById('ytApiStatus').textContent = '⏳ Loading YouTube API...';
   if (window.YT && window.YT.Player) {
+    document.getElementById('ytApiStatus').textContent = '🔄 Creating player...';
     createPlayer();
   } else {
     // API not loaded yet — queue it
