@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lyrics Lab — Colegio Nikola Tesla</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
   <style>
     :root {
       --green: #2E7D32;
@@ -280,7 +281,7 @@
       <h2>🎬 Step 2 — Watch the Video</h2>
       <div class="alert alert-info">Watch carefully. The <strong>Continue</strong> button unlocks after you've watched enough.</div>
       <div class="video-wrapper">
-        <iframe id="ytPlayer" frameborder="0" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+        <div id="ytPlayer"></div>
       </div>
       <div class="video-progress"><div class="video-progress-bar" id="videoProgressBar"></div></div>
       <div class="video-status" id="videoStatus">⏳ Watch the video to unlock the next step...</div>
@@ -358,7 +359,7 @@
         <div style="overflow-x:auto">
           <table class="report-table">
             <thead><tr>
-              <th>Student</th><th>Email</th><th>Group</th><th>Song</th>
+              <th>Student</th><th>Email</th><th>Group</th><th>Song</th><th>Grammar</th>
               <th>Score</th><th>Video watched</th><th>Date</th><th>Time</th>
             </tr></thead>
             <tbody id="reportBody"></tbody>
@@ -454,6 +455,9 @@ let videoTimer = null;
 let activityStartTime = null;
 let isAdmin = false;
 let authUser = null;
+let ytPlayerObj = null;
+let ytPlayerReady = false;
+let ytWatchInterval = null;
 
 // ═══════════════════════════════════
 // INIT — deep link & session restore
@@ -561,7 +565,8 @@ function showTab(id, btn) {
 
 function goHome() {
   if (videoTimer) clearInterval(videoTimer);
-  document.getElementById('ytPlayer').src = '';
+  if (ytWatchInterval) clearInterval(ytWatchInterval);
+  if (ytPlayerObj) { try { ytPlayerObj.destroy(); } catch(e){} ytPlayerObj = null; }
   showScreen('home');
   showSongList();
 }
@@ -688,18 +693,59 @@ function goToStep2() {
   document.getElementById('step2').style.display = 'block';
 
   const minWatch = currentSong.min_watch_seconds || 60;
-  document.getElementById('ytPlayer').src =
-    `https://www.youtube.com/embed/${currentSong.youtube_id}?rel=0&autoplay=1`;
-
   videoWatchedSeconds = 0;
-  updateVideoProgress(0, minWatch);
+  ytPlayerReady = false;
+  if (ytWatchInterval) clearInterval(ytWatchInterval);
   if (videoTimer) clearInterval(videoTimer);
-  videoTimer = setInterval(() => {
-    videoWatchedSeconds++;
-    updateVideoProgress(videoWatchedSeconds, minWatch);
-    if (videoWatchedSeconds >= minWatch) clearInterval(videoTimer);
+  updateVideoProgress(0, minWatch);
+
+  // Destroy previous player if exists
+  if (ytPlayerObj) { try { ytPlayerObj.destroy(); } catch(e){} ytPlayerObj = null; }
+
+  // Create YouTube IFrame API player
+  document.getElementById('ytPlayer').src = '';
+  ytPlayerObj = new YT.Player('ytPlayer', {
+    videoId: currentSong.youtube_id,
+    playerVars: {
+      autoplay: 1,
+      rel: 0,
+      disablekb: 1,
+      modestbranding: 1,
+      fs: 0
+    },
+    events: {
+      onReady: () => { ytPlayerReady = true; startWatchTimer(minWatch); },
+      onStateChange: (e) => { handleYTStateChange(e, minWatch); }
+    }
+  });
+}
+
+function startWatchTimer(minWatch) {
+  if (ytWatchInterval) clearInterval(ytWatchInterval);
+  ytWatchInterval = setInterval(() => {
+    if (!ytPlayerObj || !ytPlayerReady) return;
+    const state = ytPlayerObj.getPlayerState();
+    // Only count when actually playing (state 1 = playing)
+    if (state === 1) {
+      videoWatchedSeconds++;
+      updateVideoProgress(videoWatchedSeconds, minWatch);
+      if (videoWatchedSeconds >= minWatch) clearInterval(ytWatchInterval);
+    }
   }, 1000);
 }
+
+function handleYTStateChange(event, minWatch) {
+  // state 0=ended, 1=playing, 2=paused, 3=buffering, 5=cued
+  if (event.data === 0) {
+    // Video ended — if not yet at minimum, keep counting what they watched
+    if (videoWatchedSeconds < minWatch) {
+      updateVideoProgress(videoWatchedSeconds, minWatch);
+    }
+  }
+}
+
+// Required global callback for YouTube IFrame API
+window.onYouTubeIframeAPIReady = function() {};
 
 function updateVideoProgress(watched, min) {
   const pct = Math.min(100, Math.round((watched / min) * 100));
@@ -717,10 +763,11 @@ function updateVideoProgress(watched, min) {
 
 function goToStep3() {
   if (videoTimer) clearInterval(videoTimer);
+  if (ytWatchInterval) clearInterval(ytWatchInterval);
+  if (ytPlayerObj) { try { ytPlayerObj.destroy(); } catch(e){} ytPlayerObj = null; }
   updateStepUI(3);
   document.getElementById('step2').style.display = 'none';
   document.getElementById('step3').style.display = 'block';
-  document.getElementById('ytPlayer').src = '';
   buildFillBlanks();
 }
 
@@ -794,6 +841,7 @@ async function showResults(correct, total) {
     group_id: currentStudent.groupId,
     song_id: currentSong.id,
     song_title: currentSong.title,
+    grammar_point: currentSong.grammar_point || '',
     score_pct: pct,
     correct_answers: correct,
     total_blanks: total,
@@ -1005,7 +1053,7 @@ function copyLink(songId) {
 // ADMIN — REPORT
 // ═══════════════════════════════════
 async function loadReport() {
-  let query = sb.from('results').select('*').order('created_at', { ascending: false });
+  let query = sb.from('results').select('*, songs(grammar_point)').order('created_at', { ascending: false });
   const sf = document.getElementById('filterSong').value;
   const gf = document.getElementById('filterGroup').value;
   if (sf) query = query.eq('song_id', sf);
@@ -1043,6 +1091,7 @@ async function loadReport() {
       <td style="font-size:0.78rem">${r.student_email||'—'}</td>
       <td>${r.group_code}</td>
       <td>${r.song_title}</td>
+      <td>${(r.grammar_point || r.songs?.grammar_point) ? '<span class="tag">'+(r.grammar_point || r.songs?.grammar_point)+'</span>' : '—'}</td>
       <td><span class="badge ${sc}">${r.score_pct}% (${r.correct_answers}/${r.total_blanks})</span></td>
       <td>${videoOk?'✅':'⚠️'} ${r.video_watched_seconds}s</td>
       <td>${date}</td>
