@@ -528,8 +528,8 @@ async function handleAuthSession(session) {
   }
 
   // Student: needs to enter group code
-  document.getElementById('pendingEmail').textContent = email;
-  document.getElementById('pendingName').textContent = authUser.user_metadata?.full_name || '';
+  const peEl = document.getElementById('pendingEmail');
+  if (peEl) peEl.textContent = email;
   showScreen('group-entry');
 }
 
