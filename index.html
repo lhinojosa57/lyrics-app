@@ -462,26 +462,36 @@ let ytWatchInterval = null;
 // ═══════════════════════════════════
 // INIT — deep link & session restore
 // ═══════════════════════════════════
-window.addEventListener('DOMContentLoaded', async () => {
-  // Handle OAuth callback
-  const { data: { session } } = await sb.auth.getSession();
-  if (session) {
-    await handleAuthSession(session);
-    return;
-  }
-  // Show login screen by default
-  showScreen('login');
-});
+
+// Register BEFORE DOMContentLoaded so the hash token is caught immediately
+let _authReady = false;
 
 sb.auth.onAuthStateChange(async (event, session) => {
-  if (event === 'SIGNED_IN' && session) {
+  // Clean ugly hash from URL
+  if (window.location.hash && window.location.hash.includes('access_token')) {
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+  if (event === 'INITIAL_SESSION') {
+    _authReady = true;
+    if (session) { await handleAuthSession(session); }
+    else { showScreen('login'); }
+  } else if (event === 'SIGNED_IN' && session) {
     await handleAuthSession(session);
   } else if (event === 'SIGNED_OUT') {
-    authUser = null;
-    currentStudent = null;
-    isAdmin = false;
+    authUser = null; currentStudent = null; isAdmin = false;
     showScreen('login');
   }
+});
+
+window.addEventListener('DOMContentLoaded', async () => {
+  // onAuthStateChange with INITIAL_SESSION fires automatically and handles everything
+  // This is just a safety fallback if it didn't fire in time
+  if (_authReady) return;
+  await new Promise(r => setTimeout(r, 800));
+  if (_authReady) return;
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) { await handleAuthSession(session); }
+  else { showScreen('login'); }
 });
 
 async function handleAuthSession(session) {
