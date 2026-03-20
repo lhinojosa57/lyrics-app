@@ -187,36 +187,54 @@
       <span class="header-title">🎵 Lyrics Lab</span>
       <span class="header-sub">English B2 — Virtual Middle School</span>
     </div>
-    <button id="adminBtn" onclick="showAdminLogin()">⚙️ Admin</button>
+    <button id="userBtn" onclick="signOut()" style="display:none;background:transparent;border:1px solid #aaa;color:#aaa;padding:6px 14px;border-radius:20px;cursor:pointer;font-size:0.8rem;">Sign out</button>
+    <button id="adminBtn" onclick="showAdminLogin()" style="background:transparent;border:1px solid var(--green-light);color:var(--green-light);padding:6px 14px;border-radius:20px;cursor:pointer;font-size:0.8rem;">⚙️ Admin</button>
   </div>
 </header>
 
-<!-- SCREEN: HOME -->
-<div id="screen-home" class="screen active">
-  <div style="max-width:860px;margin:0 auto;">
+<!-- SCREEN: LOGIN -->
+<div id="screen-login" class="screen active">
+  <div style="max-width:440px;margin:60px auto 0;">
+    <div class="card" style="text-align:center;padding:40px 32px;">
+      <div style="font-size:2.4rem;margin-bottom:12px;">🎵</div>
+      <h2 style="font-size:1.4rem;margin-bottom:8px;">Welcome to Lyrics Lab</h2>
+      <p class="text-gray" style="margin-bottom:28px;font-size:0.9rem;">Colegio Nikola Tesla — English B2</p>
+      <button onclick="loginWithGoogle()" style="width:100%;padding:12px 20px;border:2px solid #E0E6F0;border-radius:10px;background:white;cursor:pointer;font-size:0.95rem;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;transition:border-color 0.2s;" onmouseover="this.style.borderColor='#2E7D32'" onmouseout="this.style.borderColor='#E0E6F0'">
+        <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Continue with Google
+      </button>
+      <div id="loginError" class="alert alert-error mt-16" style="display:none"></div>
+      <p style="margin-top:20px;font-size:0.78rem;color:var(--gray);">Only @nikolatesla.edu.mx accounts allowed</p>
+    </div>
+  </div>
+</div>
 
-    <!-- Entry card -->
-    <div id="studentEntryCard" class="card">
-      <h2>👋 Welcome to Lyrics Lab!</h2>
-      <p class="text-gray mb-16">Enter your details to get started.</p>
-      <label>Your full name</label>
-      <input type="text" id="studentName" placeholder="e.g. María García" />
-      <label>School email</label>
-      <input type="email" id="studentEmail" placeholder="e.g. maria.garcia@nikolatesla.edu.mx" />
+<!-- SCREEN: GROUP ENTRY -->
+<div id="screen-group-entry" class="screen">
+  <div style="max-width:440px;margin:60px auto 0;">
+    <div class="card" style="padding:32px;">
+      <h2>👋 Almost there!</h2>
+      <p class="text-gray mb-16">Signed in as <strong id="pendingEmail"></strong>. Enter your group code to continue.</p>
       <label>Group code <span style="font-weight:400;text-transform:none">(given by your teacher)</span></label>
       <input type="text" id="groupCode" placeholder="e.g. NK-4F2X" style="letter-spacing:2px;text-transform:uppercase" />
       <button class="btn btn-primary btn-full" onclick="startStudent()">Continue →</button>
       <div id="entryError" class="alert alert-error mt-8" style="display:none"></div>
     </div>
+  </div>
+</div>
+
+<!-- SCREEN: HOME -->
+<div id="screen-home" class="screen">
+  <div style="max-width:860px;margin:0 auto;">
 
     <!-- Song list -->
-    <div id="songListArea" style="display:none">
+    <div id="songListArea">
       <div class="flex items-center justify-between mb-16 wrap gap-8">
         <div>
           <h2 style="color:var(--navy);font-size:1.1rem" id="welcomeMsg"></h2>
           <p class="text-gray" style="font-size:0.82rem" id="groupMsg"></p>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="changeStudent()">Not me?</button>
+        <button class="btn btn-outline btn-sm" onclick="changeStudent()">Wrong group?</button>
       </div>
       <div id="pendingSection">
         <div class="section-label">📋 Pending</div>
@@ -296,7 +314,7 @@
   <div style="max-width:900px;margin:0 auto;">
     <div class="flex items-center justify-between mb-16 wrap gap-8">
       <h2 style="color:var(--navy)">⚙️ Admin Panel</h2>
-      <button class="btn btn-sm" style="background:#fdecea;color:var(--red)" onclick="adminLogout()">Logout</button>
+      <button class="btn btn-sm" style="background:#fdecea;color:var(--red)" onclick="signOut()">Sign out</button>
     </div>
     <div class="admin-tabs">
       <button class="tab-btn active" onclick="showTab('tabGroups',this)">👥 Groups</button>
@@ -352,19 +370,7 @@
   </div>
 </div>
 
-<!-- MODAL: Admin login -->
-<div class="modal-overlay" id="modalLogin">
-  <div class="modal">
-    <h3>🔐 Admin Login</h3>
-    <label>Password</label>
-    <input type="password" id="adminPassword" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')adminLogin()" />
-    <div id="loginError" class="alert alert-error" style="display:none">Incorrect password.</div>
-    <div class="flex gap-8 mt-8">
-      <button class="btn btn-primary" onclick="adminLogin()">Login</button>
-      <button class="btn btn-outline" onclick="closeModal('modalLogin')">Cancel</button>
-    </div>
-  </div>
-</div>
+<!-- Admin login now handled by Google Auth -->
 
 <!-- MODAL: Group -->
 <div class="modal-overlay" id="modalGroup">
@@ -436,42 +442,110 @@
 // ═══════════════════════════════════
 const SUPABASE_URL = 'https://upuwavieuqtnbewniquo.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_MW-rLWfeXQP7F-zKrFHwdg_t1hOSGpD';
-const ADMIN_PASSWORD = 'lyricslab2024'; // ← Change this!
+const ADMIN_EMAIL = 'lhinojosa@nikolatesla.edu.mx'; // ← your email
 const SCHOOL_DOMAIN = '@nikolatesla.edu.mx';
+const REDIRECT_URL = window.location.href.split('?')[0];
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-let currentStudent = null; // { name, email, group, groupId, groupName }
+let currentStudent = null;
 let currentSong = null;
 let videoWatchedSeconds = 0;
 let videoTimer = null;
 let activityStartTime = null;
 let isAdmin = false;
+let authUser = null;
 
 // ═══════════════════════════════════
 // INIT — deep link & session restore
 // ═══════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
+  // Handle OAuth callback
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    await handleAuthSession(session);
+    return;
+  }
+  // Show login screen by default
+  showScreen('login');
+});
+
+sb.auth.onAuthStateChange(async (event, session) => {
+  if (event === 'SIGNED_IN' && session) {
+    await handleAuthSession(session);
+  } else if (event === 'SIGNED_OUT') {
+    authUser = null;
+    currentStudent = null;
+    isAdmin = false;
+    showScreen('login');
+  }
+});
+
+async function handleAuthSession(session) {
+  authUser = session.user;
+  const email = authUser.email;
+
+  // Validate school domain
+  if (!email.endsWith(SCHOOL_DOMAIN)) {
+    await sb.auth.signOut();
+    showLoginError('Only ' + SCHOOL_DOMAIN + ' accounts are allowed.');
+    return;
+  }
+
+  // Check if admin
+  if (email === ADMIN_EMAIL) {
+    isAdmin = true;
+    showScreen('admin');
+    loadAdminGroups();
+    return;
+  }
+
+  // Student: check if group already assigned
   const saved = sessionStorage.getItem('lyricsLabStudent');
   if (saved) {
     currentStudent = JSON.parse(saved);
-    const params = new URLSearchParams(window.location.search);
-    const songId = params.get('song');
-    if (songId) {
-      await showSongList();
-      await openSong(songId);
-    } else {
-      await showSongList();
+    if (currentStudent.email === email) {
+      showScreen('home');
+      const params = new URLSearchParams(window.location.search);
+      const songId = params.get('song');
+      if (songId) { await showSongList(); await openSong(songId); }
+      else { await showSongList(); }
+      return;
     }
   }
-});
+
+  // Student: needs to enter group code
+  document.getElementById('pendingEmail').textContent = email;
+  document.getElementById('pendingName').textContent = authUser.user_metadata?.full_name || '';
+  showScreen('group-entry');
+}
 
 // ═══════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById('screen-' + id).classList.add('active');
+  const el = document.getElementById('screen-' + id);
+  if (el) { el.classList.add('active'); }
   window.scrollTo(0,0);
+  // Show/hide header buttons based on screen
+  const userBtn = document.getElementById('userBtn');
+  const adminBtn = document.getElementById('adminBtn');
+  if (id === 'login') { userBtn.style.display='none'; adminBtn.style.display='block'; }
+  else if (id === 'admin') { userBtn.style.display='block'; adminBtn.style.display='none'; }
+}
+
+async function loginWithGoogle() {
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: REDIRECT_URL }
+  });
+  if (error) showLoginError('Login failed. Please try again.');
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('loginError');
+  el.textContent = msg;
+  el.style.display = 'block';
 }
 
 function showTab(id, btn) {
@@ -487,6 +561,7 @@ function showTab(id, btn) {
 
 function goHome() {
   if (videoTimer) clearInterval(videoTimer);
+  document.getElementById('ytPlayer').src = '';
   showScreen('home');
   showSongList();
 }
@@ -495,21 +570,18 @@ function goHome() {
 // STUDENT ENTRY
 // ═══════════════════════════════════
 function startStudent() {
-  const name = document.getElementById('studentName').value.trim();
-  const email = document.getElementById('studentEmail').value.trim().toLowerCase();
   const code = document.getElementById('groupCode').value.trim().toUpperCase();
   const err = document.getElementById('entryError');
-
-  if (!name || name.length < 2) { showErr(err, 'Please enter your full name.'); return; }
-  if (!email || !email.endsWith(SCHOOL_DOMAIN)) { showErr(err, 'Please use your school email (' + SCHOOL_DOMAIN + ').'); return; }
   if (!code) { showErr(err, 'Please enter your group code.'); return; }
 
-  // Validate group code exists
   sb.from('groups').select('id,name,cycle').eq('code', code).single().then(({ data, error }) => {
     if (error || !data) { showErr(err, 'Group code not found. Check with your teacher.'); return; }
     err.style.display = 'none';
+    const name = authUser.user_metadata?.full_name || authUser.email.split('@')[0];
+    const email = authUser.email;
     currentStudent = { name, email, group: code, groupId: data.id, groupName: data.name };
     sessionStorage.setItem('lyricsLabStudent', JSON.stringify(currentStudent));
+    showScreen('home');
     showSongList();
   });
 }
@@ -519,16 +591,23 @@ function showErr(el, msg) { el.textContent = msg; el.style.display = 'block'; }
 function changeStudent() {
   sessionStorage.removeItem('lyricsLabStudent');
   currentStudent = null;
-  document.getElementById('studentEntryCard').style.display = 'block';
-  document.getElementById('songListArea').style.display = 'none';
-  ['studentName','studentEmail','groupCode'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('groupCode').value = '';
+  showScreen('group-entry');
+}
+
+async function signOut() {
+  sessionStorage.removeItem('lyricsLabStudent');
+  currentStudent = null;
+  isAdmin = false;
+  await sb.auth.signOut();
+  showScreen('login');
 }
 
 async function showSongList() {
-  document.getElementById('studentEntryCard').style.display = 'none';
-  document.getElementById('songListArea').style.display = 'block';
   document.getElementById('welcomeMsg').textContent = `Hello, ${currentStudent.name}! 👋`;
   document.getElementById('groupMsg').textContent = `Group: ${currentStudent.groupName || currentStudent.group}`;
+  document.getElementById('userBtn').style.display = 'block';
+  document.getElementById('adminBtn').style.display = 'none';
 
   // Get songs assigned to this group
   const { data: assignments } = await sb
@@ -746,19 +825,9 @@ function updateStepUI(active) {
 // ═══════════════════════════════════
 function showAdminLogin() {
   if (isAdmin) { showScreen('admin'); loadAdminGroups(); return; }
-  document.getElementById('adminPassword').value = '';
-  document.getElementById('loginError').style.display = 'none';
-  openModal('modalLogin');
+  loginWithGoogle();
 }
-function adminLogin() {
-  if (document.getElementById('adminPassword').value === ADMIN_PASSWORD) {
-    isAdmin = true; closeModal('modalLogin');
-    showScreen('admin'); loadAdminGroups();
-  } else {
-    document.getElementById('loginError').style.display = 'block';
-  }
-}
-function adminLogout() { isAdmin = false; showScreen('home'); }
+function adminLogout() { signOut(); }
 
 // ═══════════════════════════════════
 // ADMIN — GROUPS
