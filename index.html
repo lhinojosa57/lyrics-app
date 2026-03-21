@@ -542,11 +542,14 @@ function showScreen(id) {
   const el = document.getElementById('screen-' + id);
   if (el) { el.classList.add('active'); }
   window.scrollTo(0,0);
-  // Show/hide header buttons based on screen
+  // Show/hide header buttons based on screen — guard against null (called before DOM ready)
   const userBtn = document.getElementById('userBtn');
   const adminBtn = document.getElementById('adminBtn');
+  if (!userBtn || !adminBtn) return;
   if (id === 'login') { userBtn.style.display='none'; adminBtn.style.display='block'; }
   else if (id === 'admin') { userBtn.style.display='block'; adminBtn.style.display='none'; }
+  else if (id === 'home' || id === 'activity') { userBtn.style.display='block'; adminBtn.style.display='none'; }
+  else { userBtn.style.display='none'; adminBtn.style.display='none'; }
 }
 
 async function loginWithGoogle() {
@@ -736,10 +739,10 @@ function goToStep2() {
       events: {
         onReady: () => { ytPlayerReady = true; document.getElementById('ytApiStatus').textContent = '🟢 YouTube API connected'; startWatchTimer(minWatch); },
         onStateChange: (e) => {
-        const states = {-1:'unstarted',0:'ended',1:'playing',2:'paused',3:'buffering',5:'cued'};
-        document.getElementById('ytApiStatus').textContent = '🎬 State: ' + (states[e.data]||e.data);
-        handleYTStateChange(e, minWatch);
-      }
+          const states = {'-1':'unstarted','0':'ended','1':'playing','2':'paused','3':'buffering','5':'cued'};
+          document.getElementById('ytApiStatus').textContent = '🎬 State: ' + (states[String(e.data)] || e.data);
+          handleYTStateChange(e, minWatch);
+        }
       }
     });
   };
