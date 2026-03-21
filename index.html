@@ -705,17 +705,8 @@ function goToStep2() {
 
   const minWatch = currentSong.min_watch_seconds || 60;
   videoWatchedSeconds = 0;
-  ytPlayerReady = false;
   if (videoTimer) clearInterval(videoTimer);
   updateVideoProgress(0, minWatch);
-
-  // Destroy previous player and recreate the div fresh
-  const videoWrapper = document.getElementById('ytPlayer').parentNode;
-  const oldDiv = document.getElementById('ytPlayer');
-  if (oldDiv) oldDiv.remove();
-  const newDiv = document.createElement('div');
-  newDiv.id = 'ytPlayer';
-  videoWrapper.insertBefore(newDiv, videoWrapper.firstChild);
 
   // Load video via simple iframe embed
   document.getElementById('ytPlayer').src =
