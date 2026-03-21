@@ -317,7 +317,6 @@
   <div style="max-width:900px;margin:0 auto;">
     <div class="flex items-center justify-between mb-16 wrap gap-8">
       <h2 style="color:var(--navy)">⚙️ Admin Panel</h2>
-      <button class="btn btn-sm" style="background:#fdecea;color:var(--red)" onclick="signOut()">Sign out</button>
     </div>
     <div class="admin-tabs">
       <button class="tab-btn active" onclick="showTab('tabGroups',this)">👥 Groups</button>
@@ -615,8 +614,18 @@ async function signOut() {
   localStorage.removeItem('lyricsLabStudent');
   currentStudent = null;
   isAdmin = false;
+  authUser = null;
+  if (videoTimer) clearInterval(videoTimer);
+  document.getElementById('ytPlayer').src = '';
   await sb.auth.signOut();
-  showScreen('login');
+  // Force login screen immediately
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-login').classList.add('active');
+  const userBtn = document.getElementById('userBtn');
+  const adminBtn = document.getElementById('adminBtn');
+  if (userBtn) userBtn.style.display = 'none';
+  if (adminBtn) adminBtn.style.display = 'block';
+  window.scrollTo(0,0);
 }
 
 async function showSongList() {
@@ -850,7 +859,6 @@ function showAdminLogin() {
   if (isAdmin) { showScreen('admin'); loadAdminGroups(); return; }
   loginWithGoogle();
 }
-function adminLogout() { signOut(); }
 
 // ═══════════════════════════════════
 // ADMIN — GROUPS
