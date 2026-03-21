@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lyrics Lab — Colegio Nikola Tesla</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://www.youtube.com/iframe_api"></script>
   <style>
     :root {
       --green: #2E7D32;
@@ -281,11 +280,13 @@
       <h2>🎬 Step 2 — Watch the Video</h2>
       <div class="alert alert-info">Watch carefully. The <strong>Continue</strong> button unlocks after you've watched enough.</div>
       <div class="video-wrapper">
-        <div id="ytPlayer"></div>
+        <iframe id="ytPlayer" frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen></iframe>
+        <div id="videoOverlay" style="position:absolute;top:0;left:0;width:100%;height:80%;z-index:1;cursor:default"></div>
       </div>
       <div class="video-progress"><div class="video-progress-bar" id="videoProgressBar"></div></div>
       <div class="video-status" id="videoStatus">⏳ Watch the video to unlock the next step...</div>
-      <div id="ytApiStatus" style="font-size:0.72rem;color:var(--gray);text-align:center;margin-bottom:4px"></div>
       <button class="btn btn-primary btn-full" id="continueToStep3" onclick="goToStep3()" disabled>🔒 Continue (watch more to unlock)</button>
     </div>
 
@@ -456,9 +457,7 @@ let videoTimer = null;
 let activityStartTime = null;
 let isAdmin = false;
 let authUser = null;
-let ytPlayerObj = null;
-let ytPlayerReady = false;
-let ytWatchInterval = null;
+
 
 // ═══════════════════════════════════
 // INIT — deep link & session restore
@@ -579,8 +578,6 @@ function showTab(id, btn) {
 
 function goHome() {
   if (videoTimer) clearInterval(videoTimer);
-  if (ytWatchInterval) clearInterval(ytWatchInterval);
-  if (ytPlayerObj) { try { ytPlayerObj.destroy(); } catch(e){} ytPlayerObj = null; }
   showScreen('home');
   showSongList();
 }
@@ -709,12 +706,10 @@ function goToStep2() {
   const minWatch = currentSong.min_watch_seconds || 60;
   videoWatchedSeconds = 0;
   ytPlayerReady = false;
-  if (ytWatchInterval) clearInterval(ytWatchInterval);
   if (videoTimer) clearInterval(videoTimer);
   updateVideoProgress(0, minWatch);
 
   // Destroy previous player and recreate the div fresh
-  if (ytPlayerObj) { try { ytPlayerObj.destroy(); } catch(e){} ytPlayerObj = null; }
   const videoWrapper = document.getElementById('ytPlayer').parentNode;
   const oldDiv = document.getElementById('ytPlayer');
   if (oldDiv) oldDiv.remove();
@@ -722,72 +717,20 @@ function goToStep2() {
   newDiv.id = 'ytPlayer';
   videoWrapper.insertBefore(newDiv, videoWrapper.firstChild);
 
-  // Create YouTube IFrame API player — wait for API if not ready yet
-  const createPlayer = () => {
-    ytPlayerObj = new YT.Player('ytPlayer', {
-      videoId: currentSong.youtube_id,
-      width: '100%',
-      height: '100%',
-      playerVars: {
-        autoplay: 1,
-        rel: 0,
-        disablekb: 1,
-        modestbranding: 1,
-        fs: 0,
-        iv_load_policy: 3
-      },
-      events: {
-        onReady: () => { ytPlayerReady = true; document.getElementById('ytApiStatus').textContent = '🟢 YouTube API connected'; startWatchTimer(minWatch); },
-        onStateChange: (e) => {
-          const states = {'-1':'unstarted','0':'ended','1':'playing','2':'paused','3':'buffering','5':'cued'};
-          document.getElementById('ytApiStatus').textContent = '🎬 State: ' + (states[String(e.data)] || e.data);
-          handleYTStateChange(e, minWatch);
-        }
-      }
-    });
-  };
+  // Load video via simple iframe embed
+  document.getElementById('ytPlayer').src =
+    'https://www.youtube.com/embed/' + currentSong.youtube_id +
+    '?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3';
 
-  document.getElementById('ytApiStatus').textContent = '⏳ Loading YouTube API...';
-  if (window.YT && window.YT.Player) {
-    document.getElementById('ytApiStatus').textContent = '🔄 Creating player...';
-    createPlayer();
-  } else {
-    // API not loaded yet — queue it
-    const prev = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = function() {
-      if (prev) prev();
-      createPlayer();
-    };
-  }
-}
-
-function startWatchTimer(minWatch) {
-  if (ytWatchInterval) clearInterval(ytWatchInterval);
-  ytWatchInterval = setInterval(() => {
-    if (!ytPlayerObj || !ytPlayerReady) return;
-    const state = ytPlayerObj.getPlayerState();
-    // Only count when actually playing (state 1 = playing)
-    if (state === 1) {
-      videoWatchedSeconds++;
-      updateVideoProgress(videoWatchedSeconds, minWatch);
-      if (videoWatchedSeconds >= minWatch) clearInterval(ytWatchInterval);
-    }
+  // Simple timer — counts elapsed time on this screen
+  if (videoTimer) clearInterval(videoTimer);
+  videoTimer = setInterval(() => {
+    videoWatchedSeconds++;
+    updateVideoProgress(videoWatchedSeconds, minWatch);
+    if (videoWatchedSeconds >= minWatch) clearInterval(videoTimer);
   }, 1000);
 }
 
-function handleYTStateChange(event, minWatch) {
-  // state 0=ended, 1=playing, 2=paused, 3=buffering, 5=cued
-  if (event.data === 0) {
-    // Video ended — if not yet at minimum, keep counting what they watched
-    if (videoWatchedSeconds < minWatch) {
-      updateVideoProgress(videoWatchedSeconds, minWatch);
-    }
-  }
-}
-
-// Required global callback for YouTube IFrame API
-// Will be overridden by goToStep2 if API loads before player is needed
-if (!window.onYouTubeIframeAPIReady) window.onYouTubeIframeAPIReady = function() {};
 
 function updateVideoProgress(watched, min) {
   const pct = Math.min(100, Math.round((watched / min) * 100));
@@ -805,8 +748,7 @@ function updateVideoProgress(watched, min) {
 
 function goToStep3() {
   if (videoTimer) clearInterval(videoTimer);
-  if (ytWatchInterval) clearInterval(ytWatchInterval);
-  if (ytPlayerObj) { try { ytPlayerObj.destroy(); } catch(e){} ytPlayerObj = null; }
+  document.getElementById('ytPlayer').src = '';
   updateStepUI(3);
   document.getElementById('step2').style.display = 'none';
   document.getElementById('step3').style.display = 'block';
