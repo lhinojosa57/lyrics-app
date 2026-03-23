@@ -462,36 +462,53 @@ let authUser = null;
 // INIT — deep link & session restore
 // ═══════════════════════════════════
 
-// Register BEFORE DOMContentLoaded so the hash token is caught immediately
-let _authReady = false;
+// DOM-ready flag — nothing touches the DOM until this is true
+let _domReady = false;
+let _pendingSession = null;
+let _pendingEvent = null;
 
-sb.auth.onAuthStateChange(async (event, session) => {
+// Capture auth events early, but process them only after DOM is ready
+sb.auth.onAuthStateChange((event, session) => {
   // Clean ugly hash from URL
   if (window.location.hash && window.location.hash.includes('access_token')) {
     history.replaceState(null, '', window.location.pathname + window.location.search);
   }
-  if (event === 'INITIAL_SESSION') {
-    _authReady = true;
-    if (session) { await handleAuthSession(session); }
-    else { showScreen('login'); }
-  } else if (event === 'SIGNED_IN' && session) {
-    await handleAuthSession(session);
-  } else if (event === 'SIGNED_OUT') {
-    authUser = null; currentStudent = null; isAdmin = false;
-    showScreen('login');
+  if (!_domReady) {
+    // Store for processing after DOM loads
+    _pendingSession = session;
+    _pendingEvent = event;
+    return;
   }
+  processAuthEvent(event, session);
 });
 
 window.addEventListener('DOMContentLoaded', async () => {
-  // onAuthStateChange with INITIAL_SESSION fires automatically and handles everything
-  // This is just a safety fallback if it didn't fire in time
-  if (_authReady) return;
-  await new Promise(r => setTimeout(r, 800));
-  if (_authReady) return;
+  _domReady = true;
+
+  // Process any auth event that arrived before DOM was ready
+  if (_pendingEvent) {
+    await processAuthEvent(_pendingEvent, _pendingSession);
+    return;
+  }
+
+  // Fallback: check session directly
   const { data: { session } } = await sb.auth.getSession();
   if (session) { await handleAuthSession(session); }
   else { showScreen('login'); }
 });
+
+async function processAuthEvent(event, session) {
+  if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+    if (session) { await handleAuthSession(session); }
+    else { showScreen('login'); }
+  } else if (event === 'SIGNED_OUT') {
+    authUser = null; currentStudent = null; isAdmin = false;
+    showScreen('login');
+  } else {
+    // Any other event with no session — show login
+    if (!session && !authUser) showScreen('login');
+  }
+}
 
 async function handleAuthSession(session) {
   authUser = session.user;
@@ -515,14 +532,19 @@ async function handleAuthSession(session) {
   // Student: check if group already assigned
   const saved = localStorage.getItem('lyricsLabStudent');
   if (saved) {
-    currentStudent = JSON.parse(saved);
-    if (currentStudent.email === email) {
-      showScreen('home');
-      const params = new URLSearchParams(window.location.search);
-      const songId = params.get('song');
-      if (songId) { await showSongList(); await openSong(songId); }
-      else { await showSongList(); }
-      return;
+    try {
+      const parsed = JSON.parse(saved);
+      if (parsed && parsed.email === email && parsed.groupId && parsed.group) {
+        currentStudent = parsed;
+        showScreen('home');
+        const params = new URLSearchParams(window.location.search);
+        const songId = params.get('song');
+        if (songId) { await showSongList(); await openSong(songId); }
+        else { await showSongList(); }
+        return;
+      }
+    } catch(e) {
+      localStorage.removeItem('lyricsLabStudent');
     }
   }
 
@@ -672,13 +694,19 @@ async function showSongList() {
     </div>`;
   };
 
+  document.getElementById('pendingSection').style.display = pending.length ? 'block' : 'none';
   document.getElementById('songListPending').innerHTML =
-    pending.length ? pending.map(s => renderSong(s, false)).join('') :
-    `<p class="text-gray" style="padding:12px 0">All done! 🎉</p>`;
+    pending.length ? pending.map(s => renderSong(s, false)).join('') : '';
 
+  document.getElementById('completedSection').style.display = completed.length ? 'block' : 'none';
   document.getElementById('songListCompleted').innerHTML =
     completed.length ? completed.map(s => renderSong(s, true)).join('') : '';
-  document.getElementById('completedSection').style.display = completed.length ? 'block' : 'none';
+
+  if (!pending.length && !completed.length) {
+    document.getElementById('pendingSection').style.display = 'block';
+    document.getElementById('songListPending').innerHTML =
+      '<div class="empty-state"><div class="emoji">🎵</div><p>No songs assigned yet. Check back soon!</p></div>';
+  }
 }
 
 // ═══════════════════════════════════
