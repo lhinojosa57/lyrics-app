@@ -444,7 +444,13 @@
 // ═══════════════════════════════════
 const SUPABASE_URL = 'https://upuwavieuqtnbewniquo.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_MW-rLWfeXQP7F-zKrFHwdg_t1hOSGpD';
-const ADMIN_EMAIL = 'lhinojosa@nikolatesla.edu.mx'; // ← your email
+const ADMIN_EMAILS = [
+  'lhinojosa@nikolatesla.edu.mx',
+  // Add more teacher emails here:
+  'aflores@nikolatesla.edu.mx',
+  'iflores@nikolatesla.edu.mx',
+  'jsamano@nikolatesla.edu.mx',
+]; // ← add teacher emails
 const SCHOOL_DOMAIN = '@nikolatesla.edu.mx';
 const REDIRECT_URL = 'https://lhinojosa57.github.io/lyrics-app/';
 
@@ -522,7 +528,7 @@ async function handleAuthSession(session) {
   }
 
   // Check if admin
-  if (email === ADMIN_EMAIL) {
+  if (ADMIN_EMAILS.includes(email)) {
     isAdmin = true;
     showScreen('admin');
     loadAdminGroups();
