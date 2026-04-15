@@ -543,10 +543,27 @@ async function handleAuthSession(session) {
       if (parsed && parsed.email === email && parsed.groupId && parsed.group) {
         currentStudent = parsed;
         showScreen('home');
+        await showSongList();
+        const activeSession = sessionStorage.getItem('llActiveSong');
+        if (activeSession) {
+          try {
+            const ss = JSON.parse(activeSession);
+            if (ss.songId && ss.startTime && (Date.now() - ss.startTime) < 7200000) {
+              const confirmResume = confirm(
+                '⚠️ Tenías una actividad en curso.\n¿Quieres continuar donde la dejaste?'
+              );
+              if (confirmResume) {
+                await openSong(ss.songId, ss.step);
+              } else {
+                sessionStorage.removeItem('llActiveSong');
+              }
+              return;
+            }
+          } catch(e) { sessionStorage.removeItem('llActiveSong'); }
+        }
         const params = new URLSearchParams(window.location.search);
         const songId = params.get('song');
-        if (songId) { await showSongList(); await openSong(songId); }
-        else { await showSongList(); }
+        if (songId) { await openSong(songId); }
         return;
       }
     } catch(e) {
@@ -718,10 +735,15 @@ async function showSongList() {
 // ═══════════════════════════════════
 // ACTIVITY
 // ═══════════════════════════════════
-async function openSong(songId) {
+async function openSong(songId, resumeStep = 1) {
   const { data, error } = await sb.from('songs').select('*').eq('id', songId).single();
   if (error || !data) { alert('Could not load song. Try again.'); return; }
   currentSong = data;
+  sessionStorage.setItem('llActiveSong', JSON.stringify({
+  songId: data.id,
+  step: 1,
+  startTime: Date.now()
+  }));
   videoWatchedSeconds = 0;
   activityStartTime = Date.now();
 
@@ -738,6 +760,8 @@ async function openSong(songId) {
     document.getElementById(id).style.display = id === 'step1' ? 'block' : 'none';
   });
   updateStepUI(1);
+  if (resumeStep === 2) { goToStep2(); }
+  else if (resumeStep === 3) { goToStep3(); }
   showScreen('activity');
 }
 
@@ -877,6 +901,11 @@ async function showResults(correct, total) {
 }
 
 function updateStepUI(active) {
+  try {
+    const ss = JSON.parse(sessionStorage.getItem('llActiveSong') || '{}');
+    ss.step = active;
+    sessionStorage.setItem('llActiveSong', JSON.stringify(ss));
+  } catch(e) {}
   [1,2,3].forEach(i => {
     const d = document.getElementById('stepDot'+i);
     d.className = 'step'+(i<active?' done':i===active?' active':'');
@@ -948,6 +977,7 @@ async function loadAdminGroups() {
       </div>
       <div class="admin-actions">
         <button class="btn btn-outline btn-sm" onclick="copyGroupCode('${g.code}')">📋 Copy code</button>
+        <button class="btn btn-outline btn-sm" onclick="showGroupMembers('${g.id}','${g.name}')">👥 Members</button>
         <button class="btn btn-outline btn-sm" onclick="openGroupModal('${g.id}')">✏️ Edit</button>
         <button class="btn btn-sm" style="background:#fdecea;color:var(--red)" onclick="openDelete('${g.id}','group','Delete group &quot;${g.name}&quot;?','This will remove all student results for this group.')">🗑️</button>
       </div>
@@ -956,6 +986,76 @@ async function loadAdminGroups() {
 
 function copyGroupCode(code) {
   navigator.clipboard.writeText(code).then(() => alert('Code copied: ' + code));
+}
+
+async function showGroupMembers(groupId, groupName) {
+  const { data } = await sb.from('results')
+    .select('student_name, student_email, score_pct, created_at')
+    .eq('group_id', groupId)
+    .order('created_at', { ascending: false });
+
+  const byStudent = new Map();
+  (data || []).forEach(r => {
+    if (!byStudent.has(r.student_email)) {
+      byStudent.set(r.student_email, {
+        name: r.student_name,
+        email: r.student_email,
+        lastSeen: r.created_at,
+        sessions: 0
+      });
+    }
+    byStudent.get(r.student_email).sessions++;
+  });
+
+  const members = [...byStudent.values()];
+  const total = members.length;
+
+  const rows = total === 0
+    ? '<tr><td colspan="4" style="text-align:center;color:#aaa;padding:20px">No students have joined yet.</td></tr>'
+    : members.map(m => {
+        const d = new Date(m.lastSeen).toLocaleString('es-MX', {
+          dateStyle: 'short', timeStyle: 'short'
+        });
+        return `<tr>
+          <td>${m.name}</td>
+          <td style="font-size:0.82rem;color:#666">${m.email}</td>
+          <td style="text-align:center">${m.sessions}</td>
+          <td style="font-size:0.78rem;color:#888">${d}</td>
+        </tr>`;
+      }).join('');
+
+  let modal = document.getElementById('modalMembers');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modalMembers';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:620px;width:95%">
+        <h3 id="modalMembersTitle"></h3>
+        <p id="modalMembersCount" style="color:#888;font-size:0.85rem;margin-bottom:16px"></p>
+        <div style="overflow-x:auto;max-height:400px;overflow-y:auto">
+          <table class="report-table" style="width:100%">
+            <thead><tr>
+              <th>Name</th><th>Email</th><th style="text-align:center">Sessions</th><th>Last activity</th>
+            </tr></thead>
+            <tbody id="membersTableBody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:20px;text-align:right">
+          <button class="btn btn-outline" onclick="document.getElementById('modalMembers').style.display='none'">Close</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => {
+      if (e.target === modal) modal.style.display = 'none';
+    });
+  }
+
+  document.getElementById('modalMembersTitle').textContent = `👥 ${groupName}`;
+  document.getElementById('modalMembersCount').textContent =
+    `${total} student${total !== 1 ? 's' : ''} joined`;
+  document.getElementById('membersTableBody').innerHTML = rows;
+  modal.style.display = 'flex';
 }
 
 // ═══════════════════════════════════
@@ -1070,48 +1170,55 @@ function copyLink(songId) {
 // ADMIN — REPORT
 // ═══════════════════════════════════
 async function loadReport() {
-  let query = sb.from('results').select('*, songs(grammar_point)').order('created_at', { ascending: false });
   const sf = document.getElementById('filterSong').value;
   const gf = document.getElementById('filterGroup').value;
+
+  const { data: all } = await sb.from('results')
+    .select('song_id,song_title,group_id,group_code');
+  if (all) {
+    const songs = [...new Map(all.map(r => [r.song_id, r.song_title])).entries()];
+    const groups = [...new Map(all.map(r => [r.group_id, r.group_code])).entries()];
+    document.getElementById('filterSong').innerHTML =
+      '<option value="">All songs</option>' +
+      songs.map(([id, t]) =>
+        `<option value="${id}" ${id === sf ? 'selected' : ''}>${t}</option>`
+      ).join('');
+    document.getElementById('filterGroup').innerHTML =
+      '<option value="">All groups</option>' +
+      groups.map(([id, c]) =>
+        `<option value="${id}" ${id === gf ? 'selected' : ''}>${c}</option>`
+      ).join('');
+  }
+
+  let query = sb.from('results')
+    .select('*, songs(grammar_point)')
+    .order('created_at', { ascending: false });
   if (sf) query = query.eq('song_id', sf);
   if (gf) query = query.eq('group_id', gf);
   const { data } = await query;
 
-  // Populate filters
-  const { data: all } = await sb.from('results').select('song_id,song_title,group_id,group_code');
-  if (all) {
-    const songs = [...new Map(all.map(r=>[r.song_id,r.song_title])).entries()];
-    const groups = [...new Map(all.map(r=>[r.group_id,r.group_code])).entries()];
-    const curS = document.getElementById('filterSong').value;
-    const curG = document.getElementById('filterGroup').value;
-    document.getElementById('filterSong').innerHTML =
-      '<option value="">All songs</option>' +
-      songs.map(([id,t])=>`<option value="${id}" ${id===curS?'selected':''}>${t}</option>`).join('');
-    document.getElementById('filterGroup').innerHTML =
-      '<option value="">All groups</option>' +
-      groups.map(([id,c])=>`<option value="${id}" ${id===curG?'selected':''}>${c}</option>`).join('');
-  }
-
   const tbody = document.getElementById('reportBody');
   const empty = document.getElementById('reportEmpty');
-  if (!data||!data.length) { tbody.innerHTML=''; empty.style.display='block'; return; }
-  empty.style.display='none';
-
+  if (!data || !data.length) {
+    tbody.innerHTML = ''; empty.style.display = 'block'; return;
+  }
+  empty.style.display = 'none';
   tbody.innerHTML = data.map(r => {
-    const date = new Date(r.created_at).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
-    const mins = Math.floor(r.time_spent_seconds/60);
-    const secs = r.time_spent_seconds%60;
-    const sc = r.score_pct>=80?'badge-green':r.score_pct>=50?'badge-yellow':'badge-red';
-    const videoOk = r.video_watched_seconds >= 30;
+    const date = new Date(r.created_at).toLocaleString('es-MX', {
+      dateStyle: 'short', timeStyle: 'short'
+    });
+    const mins = Math.floor(r.time_spent_seconds / 60);
+    const secs = r.time_spent_seconds % 60;
+    const sc = r.score_pct >= 80 ? 'badge-green' : r.score_pct >= 50 ? 'badge-yellow' : 'badge-red';
     return `<tr>
-      <td><strong>${r.student_name}</strong></td>
-      <td style="font-size:0.78rem">${r.student_email||'—'}</td>
-      <td>${r.group_code}</td>
+      <td>${r.student_name}</td>
+      <td style="font-size:0.8rem">${r.student_email}</td>
+      <td><span class="code-badge">${r.group_code}</span></td>
       <td>${r.song_title}</td>
-      <td>${(r.grammar_point || r.songs?.grammar_point) ? '<span class="tag">'+(r.grammar_point || r.songs?.grammar_point)+'</span>' : '—'}</td>
-      <td><span class="badge ${sc}">${r.score_pct}% (${r.correct_answers}/${r.total_blanks})</span></td>
-      <td>${videoOk?'✅':'⚠️'} ${r.video_watched_seconds}s</td>
-      <td>${date}</td>
+      <td>${r.grammar_point || r.songs?.grammar_point || '—'}</td>
+      <td><span class="badge ${sc}">${r.score_pct}%</span></td>
+      <td>${r.video_watched_seconds}s</td>
+      <td style="font-size:0.8rem">${date}</td>
       <td>${mins}m ${secs}s</td>
     </tr>`;
   }).join('');
