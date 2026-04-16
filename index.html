@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lyrics Lab — Colegio Nikola Tesla</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
@@ -266,13 +267,27 @@
   </div>
   <div style="max-width:860px;margin:0 auto;padding:24px 16px;">
 
-    <!-- Step 1: Read -->
+   <!-- Step 1: Read -->
     <div id="step1" class="card">
       <h2>📖 Step 1 — Read Aloud</h2>
       <div class="alert alert-info">Read the lyrics below <strong>out loud</strong> before listening to the song. Take your time!</div>
       <div id="studentInstructionsBox" style="display:none" class="alert" style="background:#fffde7;border-left:4px solid #f9a825;color:#5d4037;margin-bottom:16px"></div>
       <div class="lyrics-box" id="lyricsDisplay"></div>
-      <button class="btn btn-primary btn-full" onclick="goToStep2()">✅ I read it aloud — Continue</button>
+
+      <!-- Recording controls -->
+      <div id="recordingBox" style="display:none;margin-top:20px;padding:16px;background:#f8f9ff;border-radius:12px;border:2px solid #e0e6f0">
+        <p style="font-weight:700;color:var(--navy);margin-bottom:12px">🎙️ Record yourself reading aloud</p>
+        <p id="recStatus" style="font-size:0.85rem;color:var(--gray);margin-bottom:12px">Press Record when ready.</p>
+        <audio id="audioPreview" controls style="display:none;width:100%;margin-bottom:12px"></audio>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="recBtn" class="btn btn-primary" onclick="startRecording()">🔴 Record</button>
+          <button id="stopBtn" class="btn" style="display:none;background:#e74c3c;color:white" onclick="stopRecording()">⏹ Stop</button>
+          <button id="reRecBtn" class="btn btn-outline" style="display:none" onclick="reRecord()">🔄 Re-record</button>
+          <button id="uploadRecBtn" class="btn" style="display:none;background:var(--green);color:white" onclick="uploadRecording()">☁️ Save to Drive</button>
+        </div>
+      </div>
+
+      <button id="step1NextBtn" class="btn btn-primary btn-full" style="margin-top:16px" onclick="goToStep2()">✅ I read it aloud — Continue</button>
     </div>
 
     <!-- Step 2: Watch -->
@@ -361,7 +376,7 @@
           <table class="report-table">
             <thead><tr>
               <th>Student</th><th>Email</th><th>Group</th><th>Song</th><th>Grammar</th>
-              <th>Score</th><th>Video watched</th><th>Date</th><th>Time</th>
+              <th>Score</th><th>Video watched</th><th>Recording</th><th>Date</th><th>Time</th>
             </tr></thead>
             <tbody id="reportBody"></tbody>
           </table>
@@ -410,6 +425,13 @@
     <input type="text" id="songYtId" placeholder="e.g. QUQsqBqxoR4" />
     <label>Minimum watch time (seconds)</label>
     <input type="number" id="songMinWatch" value="60" min="10" />
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #f0f0f0;margin-top:4px">
+      <input type="checkbox" id="songRecordingRequired" style="width:18px;height:18px;margin:0;cursor:pointer" />
+      <div>
+        <label style="margin:0;text-transform:none;font-size:0.92rem;font-weight:700;color:var(--navy);cursor:pointer" for="songRecordingRequired">🎙️ Require voice recording in Step 1</label>
+        <p style="margin:2px 0 0;font-size:0.78rem;color:var(--gray)">Students must record themselves reading before continuing</p>
+      </div>
+    </div>
     <label>Lyrics <span style="font-weight:400;text-transform:none">(paste full lyrics)</span></label>
     <textarea id="songLyrics" placeholder="Paste the full lyrics here..."></textarea>
     <label>Blank words <span style="font-weight:400;text-transform:none">(one word per line)</span></label>
@@ -444,6 +466,9 @@
 // ═══════════════════════════════════
 const SUPABASE_URL = 'https://upuwavieuqtnbewniquo.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_MW-rLWfeXQP7F-zKrFHwdg_t1hOSGpD';
+const GOOGLE_CLIENT_ID = '488991934580-12kqtc68ml6pv4snerlob2hqulv4rscg.apps.googleusercontent.com';
+const DRIVE_FOLDER_NAME = 'Lyrics Lab Recordings';
+
 const ADMIN_EMAILS = [
   'lhinojosa@nikolatesla.edu.mx',
   // Add more teacher emails here:
@@ -762,6 +787,21 @@ async function openSong(songId, resumeStep = 1) {
     instrBox.style.cssText = 'background:#fffde7;border-left:4px solid #f9a825;color:#5d4037;padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:0.9rem;';
   } else { instrBox.style.display = 'none'; }
 
+  // Manejo de grabación obligatoria
+  window._recordingUrl = null;
+  window._recordingSeconds = 0;
+  const recBox = document.getElementById('recordingBox');
+  const step1Btn = document.getElementById('step1NextBtn');
+  if (data.recording_required) {
+    recBox.style.display = 'block';
+    step1Btn.disabled = true;
+    step1Btn.textContent = '🎙️ Record first to continue';
+  } else {
+    recBox.style.display = 'none';
+    step1Btn.disabled = false;
+    step1Btn.textContent = '✅ I read it aloud — Continue';
+  }
+
   ['step1','step2','step3','step4'].forEach(id => {
     document.getElementById(id).style.display = id === 'step1' ? 'block' : 'none';
   });
@@ -817,6 +857,181 @@ function goToStep3() {
   document.getElementById('step2').style.display = 'none';
   document.getElementById('step3').style.display = 'block';
   buildFillBlanks();
+}
+
+// ═══════════════════════════════════
+// RECORDING — Google Drive
+// ═══════════════════════════════════
+let mediaRecorder = null;
+let audioChunks = [];
+let recordingSeconds = 0;
+let recordingTimer = null;
+let driveAccessToken = null;
+let recordingBlob = null;
+
+async function getDriveToken() {
+  return new Promise((resolve, reject) => {
+    google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/drive.file',
+      hint: authUser.email,
+      callback: (response) => {
+        if (response.error) { reject(response.error); return; }
+        driveAccessToken = response.access_token;
+        resolve(response.access_token);
+      }
+    }).requestAccessToken();
+  });
+}
+
+async function getOrCreateDriveFolder(token) {
+  // Buscar si ya existe la carpeta
+  const search = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=name='${DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  const searchData = await search.json();
+  if (searchData.files && searchData.files.length > 0) {
+    return searchData.files[0].id;
+  }
+  // Crear carpeta si no existe
+  const create = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: DRIVE_FOLDER_NAME,
+      mimeType: 'application/vnd.google-apps.folder'
+    })
+  });
+  const folder = await create.json();
+  return folder.id;
+}
+
+async function uploadAudioToDrive(blob, fileName, token) {
+  const folderId = await getOrCreateDriveFolder(token);
+  const metadata = {
+    name: fileName,
+    parents: [folderId],
+    mimeType: 'audio/webm'
+  };
+  const form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+  form.append('file', blob);
+
+  const upload = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form
+    }
+  );
+  const file = await upload.json();
+
+  // Hacer el archivo visible para el docente (cualquiera con el link)
+  await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}/permissions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ role: 'reader', type: 'anyone' })
+  });
+
+  return file.webViewLink;
+}
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      recordingBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      stream.getTracks().forEach(t => t.stop());
+      showRecordingPreview();
+    };
+    mediaRecorder.start();
+    recordingSeconds = 0;
+    document.getElementById('recBtn').style.display = 'none';
+    document.getElementById('stopBtn').style.display = 'inline-block';
+    document.getElementById('recStatus').innerHTML = '🔴 Recording...';
+    recordingTimer = setInterval(() => {
+      recordingSeconds++;
+      const m = Math.floor(recordingSeconds / 60);
+      const s = recordingSeconds % 60;
+      document.getElementById('recStatus').innerHTML =
+        `🔴 Recording... ${m}:${s.toString().padStart(2,'0')}`;
+    }, 1000);
+  } catch(e) {
+    document.getElementById('recStatus').innerHTML =
+      '⚠️ Could not access microphone. Check browser permissions.';
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+    clearInterval(recordingTimer);
+    document.getElementById('stopBtn').style.display = 'none';
+    document.getElementById('recStatus').innerHTML = '⏳ Processing...';
+  }
+}
+
+function showRecordingPreview() {
+  const url = URL.createObjectURL(recordingBlob);
+  document.getElementById('audioPreview').src = url;
+  document.getElementById('audioPreview').style.display = 'block';
+  document.getElementById('recStatus').innerHTML = '✅ Recording ready. Listen before continuing.';
+  document.getElementById('uploadRecBtn').style.display = 'inline-block';
+  document.getElementById('reRecBtn').style.display = 'inline-block';
+}
+
+function reRecord() {
+  recordingBlob = null;
+  document.getElementById('audioPreview').style.display = 'none';
+  document.getElementById('audioPreview').src = '';
+  document.getElementById('uploadRecBtn').style.display = 'none';
+  document.getElementById('reRecBtn').style.display = 'none';
+  document.getElementById('recBtn').style.display = 'inline-block';
+  document.getElementById('recStatus').innerHTML = 'Press Record when ready.';
+}
+
+async function uploadRecording() {
+  if (!recordingBlob) return;
+  const btn = document.getElementById('uploadRecBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Uploading...';
+  document.getElementById('recStatus').innerHTML = '⏳ Uploading to Google Drive...';
+
+  try {
+    const token = await getDriveToken();
+    const fileName = `${currentStudent.name}_${currentSong.title}_${Date.now()}.webm`
+      .replace(/[^a-zA-Z0-9_\-.]/g, '_');
+    const url = await uploadAudioToDrive(recordingBlob, fileName, token);
+
+    // Guardar URL en variable global para usarla al guardar results
+    window._recordingUrl = url;
+    window._recordingSeconds = recordingSeconds;
+
+    document.getElementById('recStatus').innerHTML = '✅ Audio saved to Google Drive!';
+    document.getElementById('uploadRecBtn').style.display = 'none';
+    document.getElementById('reRecBtn').style.display = 'none';
+    document.getElementById('audioPreview').style.display = 'none';
+
+    // Habilitar botón de continuar
+    document.getElementById('step1NextBtn').disabled = false;
+    document.getElementById('step1NextBtn').textContent = 'Continue →';
+
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = '☁️ Save to Drive';
+    document.getElementById('recStatus').innerHTML = '❌ Upload failed. Try again.';
+  }
 }
 
 function buildFillBlanks() {
@@ -881,7 +1096,7 @@ async function showResults(correct, total) {
   document.getElementById('lyricsFillResult').innerHTML =
     `<div class="lyrics-box">${resultHtml.replace(/\n/g,'<br>')}</div>`;
 
-  // Save result
+ // Save result
   const { error } = await sb.from('results').insert({
     student_name: currentStudent.name,
     student_email: currentStudent.email,
@@ -895,8 +1110,10 @@ async function showResults(correct, total) {
     total_blanks: total,
     video_watched_seconds: videoWatchedSeconds,
     time_spent_seconds: timeSpent,
-    session_code: Math.random().toString(36).substr(2,9).toUpperCase()
-  });
+    session_code: Math.random().toString(36).substr(2,9).toUpperCase(),
+    recording_url: window._recordingUrl || null,
+    recording_seconds: window._recordingSeconds || 0
+  }); 
 
   if (error) {
     document.getElementById('saveError').textContent = 'Could not save. Take a screenshot to show your teacher.';
@@ -1073,6 +1290,7 @@ async function openSongModal(id) {
   document.getElementById('editSongId').value = id || '';
   ['songTitle','songArtist','songGrammar','songYtId','songLyrics','songBlanks','songInstructions','songTeacherNotes'].forEach(f => document.getElementById(f).value='');
   document.getElementById('songMinWatch').value = 60;
+  document.getElementById('songRecordingRequired').checked = false;
   document.getElementById('songError').style.display = 'none';
 
   // Load groups for checkboxes
@@ -1088,6 +1306,7 @@ async function openSongModal(id) {
       document.getElementById('songGrammar').value = song.grammar_point||'';
       document.getElementById('songYtId').value = song.youtube_id;
       document.getElementById('songMinWatch').value = song.min_watch_seconds||60;
+      document.getElementById('songRecordingRequired').checked = song.recording_required || false;
       document.getElementById('songLyrics').value = song.lyrics;
       document.getElementById('songBlanks').value = song.blank_words||'';
       document.getElementById('songInstructions').value = song.student_instructions||'';
@@ -1123,6 +1342,7 @@ async function saveSong() {
     grammar_point: document.getElementById('songGrammar').value.trim(),
     youtube_id: ytId, lyrics, blank_words: blanks,
     min_watch_seconds: parseInt(document.getElementById('songMinWatch').value)||60,
+    recording_required: document.getElementById('songRecordingRequired').checked,
     student_instructions: document.getElementById('songInstructions').value.trim(),
     teacher_notes: document.getElementById('songTeacherNotes').value.trim()
   };
@@ -1225,6 +1445,10 @@ async function loadReport() {
       <td>${r.grammar_point || r.songs?.grammar_point || '—'}</td>
       <td><span class="badge ${sc}">${r.score_pct}%</span></td>
       <td>${r.video_watched_seconds}s</td>
+      <td>${r.recording_url
+        ? `<a href="${r.recording_url}" target="_blank" style="color:var(--green);font-weight:700;text-decoration:none">▶ Play</a>`
+        : '<span style="color:#ccc;font-size:0.8rem">—</span>'
+      }</td>
       <td style="font-size:0.8rem">${date}</td>
       <td>${mins}m ${secs}s</td>
     </tr>`;
