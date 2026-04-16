@@ -634,13 +634,19 @@ function startStudent() {
   const err = document.getElementById('entryError');
   if (!code) { showErr(err, 'Please enter your group code.'); return; }
 
-  sb.from('groups').select('id,name,cycle').eq('code', code).single().then(({ data, error }) => {
+sb.from('groups').select('id,name,cycle').eq('code', code).single().then(async ({ data, error }) => {
     if (error || !data) { showErr(err, 'Group code not found. Check with your teacher.'); return; }
     err.style.display = 'none';
     const name = authUser.user_metadata?.full_name || authUser.email.split('@')[0];
     const email = authUser.email;
     currentStudent = { name, email, group: code, groupId: data.id, groupName: data.name };
     localStorage.setItem('lyricsLabStudent', JSON.stringify(currentStudent));
+    await sb.from('memberships').upsert({
+      student_email: email,
+      student_name: name,
+      group_id: data.id,
+      group_code: code
+    }, { onConflict: 'student_email,group_id' });
     showScreen('home');
     showSongList();
   });
@@ -990,37 +996,37 @@ function copyGroupCode(code) {
 }
 
 async function showGroupMembers(groupId, groupName) {
-  const { data } = await sb.from('results')
-    .select('student_name, student_email, score_pct, created_at')
+  const { data } = await sb.from('memberships')
+    .select('student_name, student_email, joined_at')
     .eq('group_id', groupId)
-    .order('created_at', { ascending: false });
+    .order('joined_at', { ascending: true });
 
-  const byStudent = new Map();
-  (data || []).forEach(r => {
-    if (!byStudent.has(r.student_email)) {
-      byStudent.set(r.student_email, {
-        name: r.student_name,
-        email: r.student_email,
-        lastSeen: r.created_at,
-        sessions: 0
-      });
-    }
-    byStudent.get(r.student_email).sessions++;
+  const { data: results } = await sb.from('results')
+    .select('student_email, score_pct')
+    .eq('group_id', groupId);
+
+  const sessionsByStudent = {};
+  (results || []).forEach(r => {
+    sessionsByStudent[r.student_email] = (sessionsByStudent[r.student_email] || 0) + 1;
   });
 
-  const members = [...byStudent.values()];
+  const members = data || [];
   const total = members.length;
 
   const rows = total === 0
     ? '<tr><td colspan="4" style="text-align:center;color:#aaa;padding:20px">No students have joined yet.</td></tr>'
     : members.map(m => {
-        const d = new Date(m.lastSeen).toLocaleString('es-MX', {
+        const d = new Date(m.joined_at).toLocaleString('es-MX', {
           dateStyle: 'short', timeStyle: 'short'
         });
+        const sessions = sessionsByStudent[m.student_email] || 0;
+        const badge = sessions > 0
+          ? `<span class="badge badge-green">${sessions} activit${sessions !== 1 ? 'ies' : 'y'}</span>`
+          : `<span class="badge badge-red">No activity yet</span>`;
         return `<tr>
-          <td>${m.name}</td>
-          <td style="font-size:0.82rem;color:#666">${m.email}</td>
-          <td style="text-align:center">${m.sessions}</td>
+          <td>${m.student_name}</td>
+          <td style="font-size:0.82rem;color:#666">${m.student_email}</td>
+          <td style="text-align:center">${badge}</td>
           <td style="font-size:0.78rem;color:#888">${d}</td>
         </tr>`;
       }).join('');
@@ -1037,7 +1043,7 @@ async function showGroupMembers(groupId, groupName) {
         <div style="overflow-x:auto;max-height:400px;overflow-y:auto">
           <table class="report-table" style="width:100%">
             <thead><tr>
-              <th>Name</th><th>Email</th><th style="text-align:center">Sessions</th><th>Last activity</th>
+              <th>Name</th><th>Email</th><th style="text-align:center">Activities</th><th>Joined</th>
             </tr></thead>
             <tbody id="membersTableBody"></tbody>
           </table>
