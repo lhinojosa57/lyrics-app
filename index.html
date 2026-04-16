@@ -778,7 +778,7 @@ function goToStep2() {
   // Load video via simple iframe embed
   document.getElementById('ytPlayer').src =
     'https://www.youtube-nocookie.com/embed/' + currentSong.youtube_id +
-    '?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3';
+    '?autoplay=1&playsinline=1&rel=0&modestbranding=1&iv_load_policy=3';
 
   // Simple timer — counts elapsed time on this screen
   if (videoTimer) clearInterval(videoTimer);
@@ -897,6 +897,7 @@ async function showResults(correct, total) {
     document.getElementById('saveError').style.display = 'block';
   } else {
     document.getElementById('savedAlert').style.display = 'block';
+    sessionStorage.removeItem('llActiveSong');
   }
 }
 
