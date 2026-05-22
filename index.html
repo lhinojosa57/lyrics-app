@@ -300,6 +300,9 @@
           allowfullscreen></iframe>
         <div id="videoOverlay" style="position:absolute;top:0;left:0;width:100%;height:80%;z-index:1;cursor:default"></div>
       </div>
+      <div id="safariVideoFallback" style="display:none;background:#fff8e1;border-left:4px solid #f9a825;border-radius:8px;padding:12px 16px;margin-bottom:8px;font-size:0.88rem;color:#5d4037;">
+        📱 <strong>Video not loading?</strong> Tap <a id="safariYtLink" href="#" target="_blank" style="color:#1565c0;font-weight:600;">here to watch on YouTube</a>, then come back. The timer keeps running while you watch.
+      </div>
       <div class="video-progress"><div class="video-progress-bar" id="videoProgressBar"></div></div>
       <div class="video-status" id="videoStatus">⏳ Watch the video to unlock the next step...</div>
       <button class="btn btn-primary btn-full" id="continueToStep3" onclick="goToStep3()" disabled>🔒 Continue (watch more to unlock)</button>
@@ -825,6 +828,18 @@ function goToStep2() {
   document.getElementById('ytPlayer').src =
     'https://www.youtube-nocookie.com/embed/' + currentSong.youtube_id +
     '?autoplay=1&playsinline=1&rel=0&modestbranding=1&iv_load_policy=3';
+
+  // Safari/iOS fallback — show YouTube link only on those devices
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  const fallback = document.getElementById('safariVideoFallback');
+  const ytLink = document.getElementById('safariYtLink');
+  if (isIOS || isSafari) {
+    ytLink.href = 'https://www.youtube.com/watch?v=' + currentSong.youtube_id;
+    fallback.style.display = 'block';
+  } else {
+    fallback.style.display = 'none';
+  }
 
   // Simple timer — counts elapsed time on this screen
   if (videoTimer) clearInterval(videoTimer);
